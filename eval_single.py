@@ -130,16 +130,16 @@ def evaluate_single(g_str, p_str, db, db_dir, table_json):
     # count = scores['all']['count']
     exec_score = scores['all']['exec']
     match_score = scores['all']['exact']
-    f1_score_dict = {}
+    acc_score_dict = {}
     for type_ in partial_types:
-        f1_score_dict[type_] = scores['all']['partial'][type_]['f1']
+        acc_score_dict[type_] = scores['all']['partial'][type_]['acc']
 
-    return exec_score, match_score, f1_score_dict
+    return exec_score, match_score, acc_score_dict
 
 
 if __name__ == "__main__":
     table_json = """{"column_names": [[-1, "*"], [0, "club id"], [0, "name"], [0, "manager"], [0, "captain"], [0, "manufacturer"], [0, "sponsor"], [1, "player id"], [1, "name"], [1, "country"], [1, "earnings"], [1, "events number"], [1, "wins count"], [1, "club id"]], "column_names_original": [[-1, "*"], [0, "Club_ID"], [0, "Name"], [0, "Manager"], [0, "Captain"], [0, "Manufacturer"], [0, "Sponsor"], [1, "Player_ID"], [1, "Name"], [1, "Country"], [1, "Earnings"], [1, "Events_number"], [1, "Wins_count"], [1, "Club_ID"]], "column_types": ["text", "number", "text", "text", "text", "text", "text", "number", "text", "text", "number", "number", "number", "number"], "db_id": "soccer_3", "foreign_keys": [[13, 1]], "primary_keys": [1, 7], "table_names": ["club", "player"], "table_names_original": ["club", "player"]}"""
-    exec_score, match_score, f1_score_dict = evaluate_single("SELECT count(*) FROM club", "SELECT count(*) FROM club",
+    exec_score, match_score, acc_score_dict = evaluate_single("SELECT count(*) FROM club", "SELECT count(*) FROM club",
                                                              "soccer_3",
                                                              db_dir="data/test_database", table_json=table_json)
-    print(exec_score, match_score, f1_score_dict)
+    print(exec_score, match_score, acc_score_dict)
