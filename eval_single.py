@@ -4,7 +4,16 @@ from evaluation import Evaluator, Schema, get_sql, get_schema, build_foreign_key
     rebuild_sql_val, rebuild_sql_col, eval_exec_match
 
 
-def evaluate_single(g_str, p_str, db, db_dir, table_json):
+def evaluate_single(g_str, p_str, schema, table_json):
+    _, match_score, acc_score_dict = evaluate_single_(g_str, p_str, schema=schema, table_json=table_json)
+    return match_score, acc_score_dict
+
+
+def evaluate_single_with_exec(g_str, p_str, db, db_dir, table_json):
+    return evaluate_single_(g_str, p_str, db=db, db_dir=db_dir, table_json=table_json)
+
+
+def evaluate_single_(g_str, p_str, db=None, db_dir=None, table_json=None, schema=None):
     evaluator = Evaluator()
     levels = ['easy', 'medium', 'hard', 'extra', 'all']
     partial_types = ['select', 'select(no AGG)', 'where', 'where(no OP)', 'group(no Having)',
@@ -17,9 +26,15 @@ def evaluate_single(g_str, p_str, db, db_dir, table_json):
         scores[level]['exec'] = 0
         for type_ in partial_types:
             scores[level]['partial'][type_] = {'acc': 0., 'rec': 0., 'f1': 0., 'acc_count': 0, 'rec_count': 0}
+    if db is not None:
+        db = os.path.join(db_dir, db, db + ".sqlite")
+        print(json.JSONEncoder().encode(get_schema(db)))
+        schema = Schema(get_schema(db))
+    elif schema is None:
+        raise ValueError("schema is None")
+    else:
+        schema = Schema(schema)
 
-    db = os.path.join(db_dir, db, db + ".sqlite")
-    schema = Schema(get_schema(db))
     g_sql = get_sql(schema, g_str)
     hardness = evaluator.eval_hardness(g_sql)
     scores[hardness]['count'] += 1
@@ -60,10 +75,11 @@ def evaluate_single(g_str, p_str, db, db_dir, table_json):
     p_sql = rebuild_sql_col(p_valid_col_units, p_sql, kmap)
 
     # exec 打分
-    exec_score = eval_exec_match(db, p_str, g_str, p_sql, g_sql)
-    if exec_score:
-        scores[hardness]['exec'] += 1.0
-        scores['all']['exec'] += 1.0
+    if db is not None:
+        exec_score = eval_exec_match(db, p_str, g_str, p_sql, g_sql)
+        if exec_score:
+            scores[hardness]['exec'] += 1.0
+            scores['all']['exec'] += 1.0
 
     # match 打分
     exact_score = evaluator.eval_exact_match(p_sql, g_sql)
@@ -128,7 +144,10 @@ def evaluate_single(g_str, p_str, db, db_dir, table_json):
                      'group', 'order', 'and/or', 'IUEN', 'keywords']
 
     # count = scores['all']['count']
-    exec_score = scores['all']['exec']
+    if db is not None:
+        exec_score = scores['all']['exec']
+    else:
+        exec_score = None
     match_score = scores['all']['exact']
     acc_score_dict = {}
     for type_ in partial_types:
@@ -139,7 +158,21 @@ def evaluate_single(g_str, p_str, db, db_dir, table_json):
 
 if __name__ == "__main__":
     table_json = """{"column_names": [[-1, "*"], [0, "club id"], [0, "name"], [0, "manager"], [0, "captain"], [0, "manufacturer"], [0, "sponsor"], [1, "player id"], [1, "name"], [1, "country"], [1, "earnings"], [1, "events number"], [1, "wins count"], [1, "club id"]], "column_names_original": [[-1, "*"], [0, "Club_ID"], [0, "Name"], [0, "Manager"], [0, "Captain"], [0, "Manufacturer"], [0, "Sponsor"], [1, "Player_ID"], [1, "Name"], [1, "Country"], [1, "Earnings"], [1, "Events_number"], [1, "Wins_count"], [1, "Club_ID"]], "column_types": ["text", "number", "text", "text", "text", "text", "text", "number", "text", "text", "number", "number", "number", "number"], "db_id": "soccer_3", "foreign_keys": [[13, 1]], "primary_keys": [1, 7], "table_names": ["club", "player"], "table_names_original": ["club", "player"]}"""
-    exec_score, match_score, acc_score_dict = evaluate_single("SELECT count(*) FROM club", "SELECT count(*) FROM club",
-                                                             "soccer_3",
-                                                             db_dir="data/test_database", table_json=table_json)
+    exec_score, match_score, acc_score_dict = evaluate_single_with_exec("SELECT count(*) FROM club",
+                                                                        "SELECT count(*) FROM club",
+                                                                        "soccer_3",
+                                                                        db_dir="data/test_database",
+                                                                        table_json=table_json)
     print(exec_score, match_score, acc_score_dict)
+
+    match_score, acc_score_dict = evaluate_single("SELECT count(*) FROM club",
+                                                  "SELECT count(*) FROM club",
+                                                  {
+                                                      "club": ["club_id", "name", "manager", "captain", "manufacturer",
+                                                               "sponsor"],
+                                                      "player": ["player_id", "name", "country", "earnings",
+                                                                 "events_number", "wins_count", "club_id"],
+                                                  },
+                                                  table_json=table_json)
+
+    print(match_score, acc_score_dict)
